@@ -4,14 +4,16 @@
 
 # import pandas and plotly
 import pandas
+from plotly.offline import plot
+import plotly.graph_objs as go
 
 ##################
 # Python Warm-up #
 ##################
 
-# Make a function which takes as an argument an array of names and a
-# letter and returns an array of the names which contained those
-# letters.
+# Make a function which takes as arguments an array of names and a
+# letter and returns an array of only the names which contained that
+# letter.
 n_arr = ["Mike", "Linus", "Grace"]
 
 def filter_names(names, letter):
@@ -22,7 +24,6 @@ def filter_names(names, letter):
     return arr
 
 # BONUS: Do it without a loop
-
 def names_bonus(names, letter):
     return list(filter(lambda n: letter in n, names))
 
@@ -61,9 +62,34 @@ print("Number of institutions: %d" % ninst)
 print()
 
 # What types of schools are there? How many of each type are there?
-sectors = set(ed_data.get('sector'))
-print(' / '.join(sectors))
+# Hint: You can do this using pandas or stock python
+
+# Plain python method
+sectors = {}
+for index, row in ed_data.iterrows():
+    s = row['sector']
+    if s in sectors:
+        sectors[s] += 1
+    else:
+        sectors[s] = 1
+
+for k, v in sectors.items():
+    print("%s: %d" % (k, v))
 print()
+
+# Pandas method
+sector_counts = ed_data['sector'].value_counts();
+print(sector_counts)
+print()
+
+# Create a bar graph with sectors on the x axis and counts on the 
+# y axis (using plotly)
+data = [go.Bar(
+    x=sector_counts.axes[0].tolist(),
+    y=list(sector_counts.values)
+)]
+
+plot(data)
 
 #################################################################
 # How did the cost of UW rank against other Washington schools? #
@@ -73,6 +99,7 @@ print()
 wa_data = ed_data[ed_data.State == "WA"]
 wa_data.is_copy = False
 wa_data["tuition_rank"] = wa_data["tuition.2014"].rank(numeric_only=True)
+
 rank = wa_data[wa_data.institution ==
                "University of Washington-Seattle Campus"].tuition_rank.iloc[0]
 print("UW 2014 Tuition Rank: %d" % rank)
