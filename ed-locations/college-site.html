@@ -1,0 +1,1501 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0044)https://collegecost.ed.gov/catc/Default.aspx -->
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>
+	College Affordability and Transparency Center
+</title><link rel="Stylesheet" type="text/css" href="./College Affordability and Transparency Center_files/CATC.CSS">
+    <script type="text/javascript" async="" src="./College Affordability and Transparency Center_files/ga.js"></script><script src="./College Affordability and Transparency Center_files/CatLib.js" type="text/javascript"></script>
+    <script src="./College Affordability and Transparency Center_files/Common.js" type="text/javascript"></script>
+    <script src="./College Affordability and Transparency Center_files/jquery-1.4.4.min.js" type="text/javascript"></script>
+
+	<script type="text/javascript">
+		// Global variable to save Popup window ID used in default.aspx, scripts/catlib.js, and ucProgramCharges.ascx
+		var opennedPannelId = '';
+		//Academic Year Charges JSON
+		var ayc = {};
+		ayc.orderBy = "";
+		ayc.orderType = "";
+		//College Affordability and Transparency Watch Json
+		var ACTW = {};
+		ACTW.orderBy_NetPrice = "";
+		ACTW.ordertype_NetPrice = "";
+		ACTW.orderBy_Tuition = "";
+		ACTW.ordertype_Tuition = "";
+		//Program Charges Json
+		var pc = {};
+		pc.orderBy = "";
+		pc.orderType = "";
+		//This is a way to keep Id of the hidden field Ids then we can use them in this page to update them and then on postback we can always have updated value of the hidden fields
+		var hdnPCCIPCodeId = "";
+		var hdnPCProgramNameId = "";
+		// UI methods
+		$(document).ready(function () {
+			$("#ctl00_cphBody_ddlSectors").change(function (e) { onChangeddlSector($("OPTION:selected", this).val()); });
+			//For the first Time
+			onChangeddlSector($("OPTION:selected", $("#ctl00_cphBody_ddlSectors")).val());
+			hdnPCCIPCodeId = "ctl00_cphFoot_hdnPCCIPCode";
+			hdnPCProgramNameId = "ctl00_cphFoot_hdnPCProgramName";
+			// Handle repositioning of the popup window when scroll event fires
+			$(window).scroll(function () {
+				if (opennedPannelId != '') {
+					adjustToCenter(opennedPannelId);
+				}
+			});
+			$("body").click(
+                function (e) {
+                	if ($(e.target).attr('id') != 'spnShowXlLinks') {
+                		$("#dvDownloadXLLinksPanel").hide();
+                	}
+                	if ($(e.target).attr('id') != 'spnShowSummaryReportXlLinks') {
+                		$("#dvDownloadSummaryReportXLLinksPanel").hide();
+                	}
+                }
+            );
+
+			methodCalledByURL();
+		});
+
+		function methodCalledByURL() {
+			var action = GetQueryStringValue(window.location.href, "action");
+			if (action == "npchg") {
+				var sector = GetQueryStringValue(window.location.href, "sector");
+				$("#ctl00_cphBody_ddlSectors").val(sector);
+				onChangeddlSector(sector);
+			}
+		}
+
+		function onChangeddlSector(sectorId) {
+			resetOrders();
+			var sectorText = $("OPTION:selected", $("#ctl00_cphBody_ddlSectors")[0]).text();
+			$("#ctl00_cphFoot_hdnWLSectorText").val(sectorText);
+			ACTW.sectorId = sectorId;
+			ACTW.sectorText = sectorText;
+			$("#ctl00_cphFoot_hdnWLSectorId").val(sectorId);
+			SendAjax("BGP.aspx", "action=getcatwatchlists_tuition&sectorid=" + sectorId + "&sectortext=" + sectorText, onChangeddlSectorTriggered_Tuition_Chain);
+			showAjaxLoader();
+
+		}
+		function onChangeddlSectorTriggered_Tuition_Chain(response) {
+			if (response.length > 0) {
+				onChangeddlSectorTriggered_Tuition(response);
+				SendAjax("BGP.aspx", "action=getcatwatchlists_netprice&sectorid=" + ACTW.sectorId + "&sectortext=" + ACTW.sectorText, onChangeddlSectorTriggered_NetPrice);
+			}
+		}
+		function onChangeddlSectorTriggered_Tuition(response) {
+			hideAjaxLoader();
+			if (response.length > 0) {
+				var results = response.split(String.fromCharCode(253));
+				var reportTitle = results[0];
+				var reportHeader = results[1];
+				var reportBody = results[2];
+				var reportFooter = results[3];
+				var reportPercentChange = results[4];
+				if (reportTitle != '') {
+					$("#dvCATWTuitionTitle").html(reportTitle);
+				}
+				if (reportHeader != '') {
+					$("#dvCATWTuitionHeader").html(reportHeader);
+				}
+				if (reportFooter != '') {
+					$("#dvCATWTuitionFooter").html(reportFooter);
+				}
+				$("#dvCATWTuitionGrid").html(reportBody);
+				$("#spnPercentChange_Tuition").html(reportPercentChange);
+			}
+		}
+		function onChangeddlSectorTriggered_NetPrice(response) {
+			hideAjaxLoader();
+			if (response.length > 0) {
+				var results = response.split(String.fromCharCode(253));
+				var reportTitle = results[0];
+				var reportHeader = results[1];
+				var reportBody = results[2];
+				var reportFooter = results[3];
+				var reportPercentChange = results[4];
+				if (reportTitle != '') {
+					$("#dvCATWNetPriceTitle").html(reportTitle);
+				}
+				if (reportHeader != '') {
+					$("#dvCATWNetPriceHeader").html(reportHeader);
+				}
+				if (reportFooter != '') {
+					$("#dvCATWNetPriceFooter").html(reportFooter);
+				}
+				$("#dvCATWNetPriceGrid").html(reportBody);
+				$("#spnPercentChange_NetPrice").html(reportPercentChange);
+			}
+		}
+		function onMouseOverSectorItem(item) {
+			$(item).css('background-image', 'url(images/button_step1_select.gif)');
+		}
+		function onMouseOutSectorItem(item) {
+			if ($(item).attr('sectorId') != ayc.sectorId) {
+				$(item).css('background-image', 'url(images/button_step1_notselect.gif)');
+			}
+		}
+		function onMouseOverRportTypeItem(item) {
+			$(item).css('background-image', 'url(images/button_step2_select.gif)');
+		}
+		function onMouseOutReportTypeItem(item) {
+			if ($(item).attr('reportTypeId') != ayc.reportTypeId) {
+				$(item).css('background-image', 'url(images/button_step2_notselect.gif)');
+			}
+		}
+
+		function onAYCSectorItemClick(sectorId) {
+			var divSectorItem = null;
+			//first check if we previously selected any sector then remove it
+			if (typeof (ayc.sectorId) != 'undefined') {
+				divSectorItem = document.getElementById("dvSectorItem_" + ayc.sectorId);
+				if (divSectorItem != null) {
+					$(divSectorItem).css('background-image', 'url(images/button_step1_notselect.gif)');
+					ayc.sectorId = -1;
+				}
+			}
+			//select this sector Item
+			divSectorItem = document.getElementById("dvSectorItem_" + sectorId);
+			if (divSectorItem != null) {
+				$(divSectorItem).css('background-image', 'url(images/button_step1_select.gif)');
+				ayc.sectorId = sectorId;
+				$("#ctl00_cphFoot_hdnAYCSectorId").val(sectorId);
+			}
+		}
+
+		function onAYCReportTypeItemClick(reportTypeId, reportTypeCode) {
+			var divReportTypeItem = null;
+			//first check if we previously selected any Report Type if true then remove it
+			if (typeof (ayc.reportTypeId) != 'undefined') {
+				divReportTypeItem = document.getElementById("dvReportTypeItem_" + ayc.reportTypeId);
+				if (divReportTypeItem != null) {
+					$(divReportTypeItem).css('background-image', 'url(images/button_step2_notselect.gif)');
+					ayc.reportTypeCode = -1;
+					ayc.reportTypeId = -1;
+				}
+			}
+			//select this ReportType Item
+			divReportTypeItem = document.getElementById("dvReportTypeItem_" + reportTypeId);
+			if (divReportTypeItem != null) {
+				$(divReportTypeItem).css('background-image', 'url(images/button_step2_select.gif)');
+				ayc.reportTypeCode = reportTypeCode;
+				ayc.reportTypeId = reportTypeId;
+				$("#ctl00_cphFoot_hdnAYCReportTypeId").val(reportTypeId);
+				$("#ctl00_cphFoot_hdnAYCReportTypeCode").val(reportTypeCode);
+			}
+		}
+
+		function onGenerateAYCReportURL(sectorId, reportTypeCode) {
+			ayc.sectorId = sectorId;
+			ayc.reportTypeCode = reportTypeCode;
+			if (reportTypeCode == 'a')
+				ayc.reportTypeId = '1';
+			else if (reportTypeCode == 'b')
+				ayc.reportTypeId = '2';
+			else if (reportTypeCode == 'c')
+				ayc.reportTypeId = '3';
+			else if (reportTypeCode == 'd')
+				ayc.reportTypeId = '4';
+			onGenerateAYCReportClick();
+
+		}
+		function onGenerateAYCReportClick() {
+			if (validateForm_GenerateAYCReport() == 1) {
+				SendAjax("BGP.aspx", "action=aycreport&sectorid=" + ayc.sectorId + "&reporttypeid=" + ayc.reportTypeId + "&reporttypecode=" + ayc.reportTypeCode, onGenerateAYCReportClickTriggered);
+				GreyOut();
+				showAjaxLoader();
+			}
+		}
+		function onGenerateAYCReportClickTriggered(response) {
+			hideAjaxLoader();
+			if (response.length > 0) {
+				if (response != "ERROR") {
+					var results = response.split(String.fromCharCode(253));
+					var reportTitle = results[0];
+					var reportHeader = results[1];
+					var reportBody = results[2];
+					var reportFooter = results[3];
+					$("#dvAYCReportTitle").html(reportTitle);
+					$("#dvAYCReportHeader").html(reportHeader);
+					$("#dvAYCReportGrid").html(reportBody);
+					$("#dvAYCReportFooter").html(reportFooter);
+					showAYCReportForm();
+				}
+				else {
+					UndoGreyOut();
+				}
+			}
+			else {
+				UndoGreyOut();
+			}
+		}
+
+		function showAYCReportForm() {
+			opennedPannelId = 'dvAYCReportPanel';
+			adjustToCenter("dvAYCReportPanel");
+			$("#dvAYCReportPanel").show();
+		}
+
+		function hideAYCReportForm() {
+			$("#dvAYCReportPanel").hide();
+		}
+		function validateForm_GenerateAYCReport() {
+			if (typeof (ayc.sectorId) == 'undefined') {
+				alert("Please choose a sector.");
+				return 0;
+			}
+			if (typeof (ayc.reportTypeId) == 'undefined') {
+				alert("Please choose a report type.");
+				return 0;
+			}
+			return 1;
+		}
+		function onCATWTuitionHeaderSortClick(item) {
+
+			var imgs = $(".dvCATWTuitionHeader_Sort img");
+			for (var i = 0; i < imgs.length; i++) {
+				$(imgs[i]).hide();
+			}
+
+			if ($(item).attr("ordertype") == "desc") {
+				$(item).attr("ordertype", "asc")
+				$(item).find("img").attr("src", "images/popup_icon_up.gif");
+				$(item).find("img").show();
+			}
+			else {
+				$(item).attr("ordertype", "desc")
+				$(item).find("img").attr("src", "images/popup_icon_down.gif");
+				$(item).find("img").show();
+			}
+			ACTW.orderBy_Tuition = $(item).attr("orderby");
+			ACTW.orderType_Tuition = $(item).attr("ordertype");
+			SendAjax("BGP.aspx", "action=getcatwatchlists_tuition&sectorid=" + ACTW.sectorId + "&sectortext=" + ACTW.sectorText + "&orderby=" + $(item).attr("orderby") + "&ordertype=" + $(item).attr("ordertype"), onChangeddlSectorTriggered_Tuition);
+			showAjaxLoader();
+		}
+		function onCATWNetPriceHeaderSortClick(item) {
+			var imgs = $(".dvCATWNetPriceHeader_Sort img");
+			for (var i = 0; i < imgs.length; i++) {
+				$(imgs[i]).hide();
+			}
+
+			if ($(item).attr("ordertype") == "desc") {
+				$(item).attr("ordertype", "asc")
+				$(item).find("img").attr("src", "images/popup_icon_up.gif");
+				$(item).find("img").show();
+			}
+			else {
+				$(item).attr("ordertype", "desc")
+				$(item).find("img").attr("src", "images/popup_icon_down.gif");
+				$(item).find("img").show();
+			}
+
+			ACTW.orderBy_NetPrice = $(item).attr("orderby");
+			ACTW.orderType_NetPrice = $(item).attr("ordertype");
+			SendAjax("BGP.aspx", "action=getcatwatchlists_netprice&sectorid=" + ACTW.sectorId + "&sectortext=" + ACTW.sectorText + "&orderby=" + $(item).attr("orderby") + "&ordertype=" + $(item).attr("ordertype"), onChangeddlSectorTriggered_NetPrice);
+			showAjaxLoader();
+		}
+		function resetOrders() {
+			var imgs;
+			var divs;
+			var i;
+			imgs = $(".dvCATWTuitionHeader_Sort img");
+			for (i = 0; i < imgs.length; i++) {
+				$(imgs[i]).hide();
+			}
+			$(imgs[i - 1]).attr("src", "images/popup_icon_down.gif");
+			$(imgs[i - 1]).show();
+			divs = $(".dvCATWTuitionHeader_Sort");
+			for (var i = 0; i < divs.length; i++) {
+				$(divs[i]).attr("ordertype", "desc");
+			}
+
+			imgs = $(".dvCATWNetPriceHeader_Sort img");
+			for (i = 0; i < imgs.length; i++) {
+				$(imgs[i]).hide();
+			}
+			$(imgs[i - 1]).attr("src", "images/popup_icon_down.gif");
+			$(imgs[i - 1]).show();
+
+			divs = $(".dvCATWNetPriceHeader_Sort");
+			for (var i = 0; i < divs.length; i++) {
+				$(divs[i]).attr("ordertype", "desc");
+			}
+
+		}
+		function onPCReportHeaderSortClick(item) {
+			var imgs = $(".dvPCReportHeader_Sort img");
+			for (var i = 0; i < imgs.length; i++) {
+				$(imgs[i]).hide();
+			}
+
+			if ($(item).attr("ordertype") == "desc") {
+				$(item).attr("ordertype", "asc")
+				$(item).find("img").attr("src", "images/popup_icon_up.gif");
+				$(item).find("img").show();
+			}
+			else {
+				$(item).attr("ordertype", "desc")
+				$(item).find("img").attr("src", "images/popup_icon_down.gif");
+				$(item).find("img").show();
+			}
+			pc.orderType = $(item).attr("ordertype");
+			pc.orderBy = $(item).attr("orderby");
+			showAjaxLoader();
+			SendAjax("BGP.aspx", "action=pcreport&cipcode=" + pc.cipCode + "&orderby=" + $(item).attr("orderby") + "&ordertype=" + $(item).attr("ordertype") + "&programname=" + pc.programName, function (response) {
+				hideAjaxLoader();
+				if (response.length > 0) {
+					if (response != "error") {
+						/*************Injecting Data******/
+						injectPCReportData(response);
+						/*********END: Injecting data*****/
+					}
+				}
+			});
+		}
+
+		function onAYCReportHeaderSortClick(item) {
+			var imgs = $(".dvAYCReportHeader_Sort img");
+			for (var i = 0; i < imgs.length; i++) {
+				$(imgs[i]).hide();
+			}
+
+			var firstOrderType = $(item).attr("ordertype");
+			var secondOrderType = '';
+			if ($(item).attr("ordertype").indexOf(",") > -1) {
+				firstOrderType = $(item).attr("ordertype").split(",")[0];
+				secondOrderType = $(item).attr("ordertype").split(",")[1];
+				secondOrderType = "," + secondOrderType;
+			}
+			if (firstOrderType == "desc") {
+				$(item).attr("ordertype", "asc" + secondOrderType)
+				$(item).find("img").attr("src", "images/popup_icon_up.gif");
+				$(item).find("img").show();
+			}
+			else {
+				$(item).attr("ordertype", "desc" + secondOrderType)
+				$(item).find("img").attr("src", "images/popup_icon_down.gif");
+				$(item).find("img").show();
+			}
+			ayc.orderType = $(item).attr("ordertype");
+			ayc.orderBy = $(item).attr("orderby");
+			showAjaxLoader();
+			SendAjax("BGP.aspx", "action=aycreport&sectorid=" + ayc.sectorId + "&reporttypeid=" + ayc.reportTypeId + "&reporttypecode=" + ayc.reportTypeCode + "&orderby=" + $(item).attr("orderby") + "&ordertype=" + $(item).attr("ordertype"), function (response) {
+				hideAjaxLoader();
+				if (response.length > 0) {
+					if (response != "ERROR") {
+						var results = response.split(String.fromCharCode(253));
+						var reportTitle = results[0];
+						var reportHeader = results[1];
+						var reportBody = results[2];
+						var reportFooter = results[3];
+						$("#dvAYCReportTitle").html(reportTitle);
+						$("#dvAYCReportGrid").html(reportBody);
+						$("#dvAYCReportFooter").html(reportFooter);
+					}
+					else {
+						UndoGreyOut();
+					}
+				}
+				else {
+					UndoGreyOut();
+				}
+			});
+		}
+
+		function setHiddenField_Order_WLReport(reportType) {
+			if (reportType == "tuition") {
+				$("#ctl00_cphFoot_hdnWLOrderBy").val(ACTW.orderBy_Tuition);
+				$("#ctl00_cphFoot_hdnWLOrderType").val(ACTW.ordertype_Tuition);
+			}
+			else {
+				$("#ctl00_cphFoot_hdnWLOrderBy").val(ACTW.orderBy_NetPrice);
+				$("#ctl00_cphFoot_hdnWLOrderType").val(ACTW.ordertype_NetPrice);
+			}
+		}
+		function setHiddenField_Order_PCReport() {
+
+			$("#ctl00_cphFoot_hdnPCOrderBy").val(pc.orderBy);
+			$("#ctl00_cphFoot_hdnPCOrderType").val(pc.orderType);
+		}
+		function setHiddenField_Order_AYCReport() {
+
+			$("#ctl00_cphFoot_hdnAYCOrderBy").val(ayc.orderBy);
+			$("#ctl00_cphFoot_hdnAYCOrderType").val(ayc.orderType);
+		}
+		function onMouseOverReportRow(rowObj) {
+			if ($(rowObj).attr('class').indexOf('report_body_row_selected') < 0) {
+				$(rowObj).attr('class', $(rowObj).attr('class') + ' report_body_row_selected ');
+			}
+		}
+		function onMouseOutReportRow(rowObj) {
+			if ($(rowObj).attr('class').indexOf('report_body_row_selected') > -1) {
+				$(rowObj).attr('class', $(rowObj).attr('class').replace('report_body_row_selected', ''));
+			}
+		}
+		function showAboutPage() {
+			GreyOut();
+			adjustToCenter("dvAboutPagePopup");
+			$("#dvAboutPagePopup").show();
+		}
+
+		function showXLLinks(benchObj) {
+			var top = $(benchObj).offset().top * 1 - 20;
+			var left = $(benchObj).offset().left * 1 + 60;
+			$("#dvDownloadXLLinksPanel").css({ "position": "absolute", "top": top + "px", "left": left + "px" });
+			$("#dvDownloadXLLinksPanel").show();
+		}
+		function showSummaryReportXLLinks(benchObj) {
+			var top = $(benchObj).offset().top * 1 - 20;
+			var left = $(benchObj).offset().left * 1 + 60;
+			$("#dvDownloadSummaryReportXLLinksPanel").css({ "position": "absolute", "top": top + "px", "left": left + "px" });
+			$("#dvDownloadSummaryReportXLLinksPanel").show();
+		}
+	</script>
+
+    <script type="text/javascript">
+        if (document.images) {
+            var p = new Image();
+            p.src = 'images/timer.gif';
+            p = new Image();
+            p.src = 'images/popup_icon_close_notselect.gif';
+            p = new Image();
+            p.src = 'images/popup_icon_close_select.gif';
+        }
+
+        $(document).ready(function () {
+            $(".hfsFoot").css('background-color', "#FFFFFF");
+            BrowserDetect.init();
+        });
+    </script>
+</head>
+<body id="mainBody" style="background-color:#5F7A8F;margin:0;padding:0;font-family:Segoe UI,Arial;">
+
+    <form name="aspnetForm" method="post" action="https://collegecost.ed.gov/catc/Default.aspx" id="aspnetForm">
+<div>
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="">
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUKLTIwOTExNDU5Ng9kFgJmD2QWAgIFD2QWAgIBD2QWDgIBDxYCHgtfIUl0ZW1Db3VudAIJFhICAQ9kFgJmDxUEATEBMQExMlB1YmxpYywgNC15ZWFyIG9yIGFib3ZlICAgICAgICAgICAgICAgICAgICAgICAgICAgZAIDD2QWAmYPFQQBMgEyATIyUHJpdmF0ZSBub3QtZm9yLXByb2ZpdCwgNC15ZWFyIG9yIGFib3ZlICAgICAgICAgICBkAgUPZBYCZg8VBAEzATMBMzJQcml2YXRlIGZvci1wcm9maXQsIDQteWVhciBvciBhYm92ZSAgICAgICAgICAgICAgIGQCBw9kFgJmDxUEATQBNAE0MlB1YmxpYywgMi15ZWFyICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgZAIJD2QWAmYPFQQBNQE1ATUyUHJpdmF0ZSBub3QtZm9yLXByb2ZpdCwgMi15ZWFyICAgICAgICAgICAgICAgICAgICBkAgsPZBYCZg8VBAE2ATYBNjJQcml2YXRlIGZvci1wcm9maXQsIDIteWVhciAgICAgICAgICAgICAgICAgICAgICAgIGQCDQ9kFgJmDxUEATcBNwE3MlB1YmxpYywgbGVzcy10aGFuLTIteWVhciAgICAgICAgICAgICAgICAgICAgICAgICAgZAIPD2QWAmYPFQQBOAE4ATgyUHJpdmF0ZSBub3QtZm9yLXByb2ZpdCwgbGVzcy10aGFuLTIteWVhciAgICAgICAgICBkAhEPZBYCZg8VBAE5ATkBOTJQcml2YXRlIGZvci1wcm9maXQsIGxlc3MtdGhhbi0yLXllYXIgICAgICAgICAgICAgIGQCAw8WAh8AAgQWCAIBD2QWAmYPFQYBMQFBATEBQQExD0hpZ2hlc3QgVHVpdGlvbmQCAg9kFgJmDxUGATIBQgEyAUIBMhJIaWdoZXN0IE5ldCBQcmljZXNkAgMPZBYCZg8VBgEzAUUBMwFFATMOTG93ZXN0IFR1aXRpb25kAgQPZBYCZg8VBgE0AUYBNAFGATQRTG93ZXN0IE5ldCBQcmljZXNkAgcPEA8WAh4LXyFEYXRhQm91bmRnZBAVCTJQdWJsaWMsIDQteWVhciBvciBhYm92ZSAgICAgICAgICAgICAgICAgICAgICAgICAgIDJQcml2YXRlIG5vdC1mb3ItcHJvZml0LCA0LXllYXIgb3IgYWJvdmUgICAgICAgICAgIDJQcml2YXRlIGZvci1wcm9maXQsIDQteWVhciBvciBhYm92ZSAgICAgICAgICAgICAgIDJQdWJsaWMsIDIteWVhciAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDJQcml2YXRlIG5vdC1mb3ItcHJvZml0LCAyLXllYXIgICAgICAgICAgICAgICAgICAgIDJQcml2YXRlIGZvci1wcm9maXQsIDIteWVhciAgICAgICAgICAgICAgICAgICAgICAgIDJQdWJsaWMsIGxlc3MtdGhhbi0yLXllYXIgICAgICAgICAgICAgICAgICAgICAgICAgIDJQcml2YXRlIG5vdC1mb3ItcHJvZml0LCBsZXNzLXRoYW4tMi15ZWFyICAgICAgICAgIDJQcml2YXRlIGZvci1wcm9maXQsIGxlc3MtdGhhbi0yLXllYXIgICAgICAgICAgICAgIBUJATEBMgEzATQBNQE2ATcBOAE5FCsDCWdnZ2dnZ2dnZ2RkAgkPDxYCHghzZWN0b3JpZAUBMGRkAgsPDxYCHwIFATBkZAINDw8WAh8CBQEwZGQCDw8PFgIfAgUBMGRkZL6nsxxFyOEWmgj4sm+6px63aud2">
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['aspnetForm'];
+if (!theForm) {
+    theForm = document.aspnetForm;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<div>
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="694FB59B">
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEWHAL/4aKGBwLOkN2nAQLL4o7dDALK4o7dDALJ4o7dDALI4o7dDALP4o7dDALO4o7dDALN4o7dDALc4o7dDALT4o7dDALh+OC3DALFlOSrAgLFlKiaCALFlLx1AuPn1YkFAu3VlvoDAvyC9qoDArTgnOoEAoW8wvoPAv7tzcQEAtLn2d0DAoGsxe0KAr3/yvsGAr+iyKoGAr2VsrEGAsL8upYKAtGK9c4GXcMdUtNWsO1NwJs81j/xrA0JNg8=">
+</div>
+        <div id="dvMasterBody" style="margin:auto;height:1719px;width:1003px;background-color:#5F7A8F;">
+            <div style="padding:0; text-align:left;">
+
+	<div id="dvMainLogo" style="position: absolute; z-index: 1;">
+		<img src="./College Affordability and Transparency Center_files/background_top.gif" alt="College Affordability and Transparency Center" title="College Affordability and Transparency Center" style="border: 0">
+		<div style="position: relative; margin-top: -165px; margin-left: 745px;">
+			<img style="border: 0px; text-decoration: none; position: absolute; margin-top: 40px; margin-left: 10px; cursor: pointer; border: 0" src="./College Affordability and Transparency Center_files/icon_moreinfo.jpg" alt="Tell me more" title="Tell me more" onclick="showAboutPage()">
+		</div>
+	</div>
+	<div style="position: absolute; z-index: 5; margin-top: 80px;">
+		<div style="margin-left: 25px;">
+			<!--Div Position adjaustment-->
+			<div style="float: left; width: 570px;">
+				<div style="background-image: url(images/image_left_top.png); background-repeat: no-repeat; height: 35px;"></div>
+				<div style="background-image: url(images/image_left_middle.png); background-repeat: repeat-y; padding-left: 35px; height: 509px;">
+					<div>
+						<img src="./College Affordability and Transparency Center_files/graphic_title_academicyear.gif" alt="Which colleges have the highest and lowest tuition and net prices?" title="Which colleges have the highest and lowest tuition and net prices?">
+					</div>
+					<div style="width: 500px; margin-top: 9px;"><span style="direction: ltr; font-size: 13px; color: #333333; line-height: 18px;">Use the options below to generate a report on the highest (top 5%) and lowest (bottom 10%) academic year charges for each sector.  Tuition reports include tuition and required fees. Net price is cost of attendance minus grant and scholarship aid. Data are reported by institutions and are for full-time beginning students.</span></div>
+					<div style="margin-top: 10px;">
+						<div style="float: left; width: 309px; //height: 309px;">
+
+									<div style="width: 309;">
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_top.gif" title="Choose Sector" alt="Choose Sector">
+									</div>
+									<div class="repeater_wraper" style="height: 324px; //height: 324px;">
+										<div style="background-image: url(images/graphic_step1_middle.gif); background-repeat: repeat-y; width: 309;">
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(1)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="1" id="dvSectorItem_1"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Public, 4-year or above                           </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(2)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="2" id="dvSectorItem_2"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Private not-for-profit, 4-year or above           </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(3)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="3" id="dvSectorItem_3"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Private for-profit, 4-year or above               </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(4)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="4" id="dvSectorItem_4"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Public, 2-year                                    </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(5)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="5" id="dvSectorItem_5"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Private not-for-profit, 2-year                    </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(6)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="6" id="dvSectorItem_6" style="background-image: url(&quot;images/button_step1_notselect.gif&quot;);"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Private for-profit, 2-year                        </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(7)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="7" id="dvSectorItem_7" style="background-image: url(&quot;images/button_step1_notselect.gif&quot;);"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Public, less-than-2-year                          </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(8)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="8" id="dvSectorItem_8"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Private not-for-profit, less-than-2-year          </span></div>
+									</a>
+
+									<div>
+										<img src="./College Affordability and Transparency Center_files/graphic_step1_middle.gif" title=" " alt=" " style="width: 309px;">
+									</div>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="sector_item" onclick="onAYCSectorItemClick(9)" onmouseover="onMouseOverSectorItem(this)" onmouseout="onMouseOutSectorItem(this)" sectorid="9" id="dvSectorItem_9"><span style="font-size: 13px; color: #ffffff; font-weight: bold; position: absolute; margin: 4px; margin-top: 5px;">Private for-profit, less-than-2-year              </span></div>
+									</a>
+
+									</div>
+                                        </div>
+                                        <div style="height: 11px; width: 309; //position: absolute;">
+											<img alt=" " title=" " src="./College Affordability and Transparency Center_files/graphic_step1_bottom.gif">
+										</div>
+
+						</div>
+						<div style="float: left; width: 181px; margin-left: 17px; margin-top: 35px;">
+
+
+									<div style="height: 52px; width: 181px;">
+										<img src="./College Affordability and Transparency Center_files/graphic_step2_top.gif" title="Choose Report Type" alt="Choose Report Type">
+									</div>
+									<div class="repeater_wraper" style="height: 130px; width: 200px; //height: 130px;">
+										<div style="background-image: url(images/graphic_step2_middle.gif); background-repeat: repeat-y; width: 181px;">
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="report_type_item" onclick="onAYCReportTypeItemClick(&#39;1&#39;,&#39;A&#39;)" reporttypeid="1" reporttypecode="A" id="dvReportTypeItem_1" onmouseover="onMouseOverRportTypeItem(this)" onmouseout="onMouseOutReportTypeItem(this)"><span style="font-family: Segoe UI,Arial; font-size: 13px; color: #ffffff; font-weight: bold;">Highest Tuition</span></div>
+									</a>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="report_type_item" onclick="onAYCReportTypeItemClick(&#39;2&#39;,&#39;B&#39;)" reporttypeid="2" reporttypecode="B" id="dvReportTypeItem_2" onmouseover="onMouseOverRportTypeItem(this)" onmouseout="onMouseOutReportTypeItem(this)"><span style="font-family: Segoe UI,Arial; font-size: 13px; color: #ffffff; font-weight: bold;">Highest Net Prices</span></div>
+									</a>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="report_type_item" onclick="onAYCReportTypeItemClick(&#39;3&#39;,&#39;E&#39;)" reporttypeid="3" reporttypecode="E" id="dvReportTypeItem_3" onmouseover="onMouseOverRportTypeItem(this)" onmouseout="onMouseOutReportTypeItem(this)"><span style="font-family: Segoe UI,Arial; font-size: 13px; color: #ffffff; font-weight: bold;">Lowest Tuition</span></div>
+									</a>
+
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#" style="border: 0px; text-decoration: none;">
+										<div class="report_type_item" onclick="onAYCReportTypeItemClick(&#39;4&#39;,&#39;F&#39;)" reporttypeid="4" reporttypecode="F" id="dvReportTypeItem_4" onmouseover="onMouseOverRportTypeItem(this)" onmouseout="onMouseOutReportTypeItem(this)"><span style="font-family: Segoe UI,Arial; font-size: 13px; color: #ffffff; font-weight: bold;">Lowest Net Prices</span></div>
+									</a>
+
+									</div>
+                                        </div>
+                                        <div style="background-image: url(images/graphic_step2_bottom.gif); background-repeat: no-repeat; height: 10px; width: 181px;"></div>
+
+							<div style="margin-top: 30px;">
+								<div style="height: 52px; width: 185px;">
+									<img src="./College Affordability and Transparency Center_files/graphic_step3_top.gif" alt="Generate Report" title="Generate Report">
+								</div>
+								<div style="background-image: url(images/graphic_step3_middle.gif); background-repeat: repeat-y; width: 185px;">
+									<a href="https://collegecost.ed.gov/catc/Default.aspx#">
+										<div style="height: 27px; cursor: pointer; width: 146px; margin-left: 25px;" onclick="onGenerateAYCReportClick()" id="dvReportTypeItem_">
+											<img src="./College Affordability and Transparency Center_files/button_step3_selet.gif" alt="Generate Report" title="Generate Report" style="border: 0; margin-right: 2px;">
+											<span style="font-size: 13px; color: #ffffff;"></span>
+										</div>
+									</a>
+								</div>
+								<div style="background-image: url(images/graphic_step3_bottom.gif); background-repeat: no-repeat; height: 12px; width: 185px;"></div>
+							</div>
+						</div>
+						<div style="clear: both;"></div>
+					</div>
+				</div>
+				<div style="background-image: url(images/image_left_bottom.png); background-repeat: no-repeat; height: 25px; width: 570px;"></div>
+			</div>
+			<div style="float: left; margin-top: 3px;">
+				<img src="./College Affordability and Transparency Center_files/image_sep_tall.png" alt=" " title=" ">
+			</div>
+			<div style="float: left; width: 369px;">
+				<div style="background-image: url(images/image_right.png); background-repeat: no-repeat; padding-left: 20px; height: 321px; width: 376; padding-top: 37px;">
+
+<script type="text/javascript">
+    var foundPrograms = [];
+    var selectedfoundProgramIndex = -1;
+
+    $(document).ready(function () {
+        //Binding the keyup to search for the program
+        $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").bind('keyup', searchProgramByName);
+        //Binding the keydown to the search box for programs
+        $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").bind('keydown', keyDownOnFoundProgramsList);
+        $(document).bind('click', function (e) { closeAutocomplete(); });
+    });
+
+    function searchProgramByName(e) {
+
+        if (e.keyCode == '40' || e.keyCode == '38' || e.keyCode == '13' || e.keyCode == '27') {
+
+            return;
+        }
+        else {
+            var txtSearchValue = $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").val();
+            var previousSearch = $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").attr('PreviousSearch');
+            if (txtSearchValue.length > 0) {
+                $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").attr('PreviousSearch', txtSearchValue);
+                SendAjax('BGP.aspx', "action=searchprogramname&searchvalue=" + txtSearchValue, function (response) {
+                    foundPrograms = jQuery.parseJSON(response);
+                    if (foundPrograms.length > 0) {
+                        var foundProgramsHtmlDOM = makeFoundProgramsDivs(foundPrograms, txtSearchValue, $("#dvFoundProgramList")[0]);
+                        $(foundProgramsHtmlDOM).html();
+                        if (foundPrograms.length > 10) {
+                            $("#dvFoundProgramList").css('overflow', 'auto');
+                            $("#dvFoundProgramList").css('height', '250px');
+                        }
+                        else {
+                            $("#dvFoundProgramList").css('overflow', 'hidden');
+                        }
+
+                        var p = $('#mainBody').offset();
+                        //window.status = p.top + 'px , ' + p.left + 'px';
+                        if (BrowserDetect.browser == 'Explorer') {
+                            // IE
+                            if (BrowserDetect.version <= 7) {
+                                $('#dvFoundProgramList').show().css({ 'top': (p.top * 1 + 316) + "px", 'left': (p.left * 1 + 631) + "px" });
+                            }
+                            else {
+                                $('#dvFoundProgramList').show().css({ 'top': (p.top * 1 + 315) + "px", 'left': (p.left * 1 + 631) + "px" });
+                            }
+                        } else {
+                            // NOT IE
+                            if (BrowserDetect.version < 4) {
+                                $('#dvFoundProgramList').show().css({ 'top': (p.top * 1 + 315) + "px", 'left': (p.left * 1 + 631) + "px" });
+                            }
+                            else {
+                                $('#dvFoundProgramList').show().css({ 'top': (p.top * 1 + 317) + "px", 'left': (p.left * 1 + 631) + "px" });
+                            }
+
+                        }
+
+
+                        $('#dvFoundProgramList').show();
+                    }
+                    else {
+                        closeAutocomplete();
+                    }
+                });
+            }
+            else if (txtSearchValue.length <= 0) {
+                closeAutocomplete();
+            }
+        }
+    }
+
+    function navigateFoundItems(keyCode) {
+        if (selectedfoundProgramIndex > -1 && selectedfoundProgramIndex < foundPrograms.length) {
+            goOutfoundProgramItem('div_FoundProgram_' + foundPrograms[selectedfoundProgramIndex].CIPCODE);
+        }
+        if (keyCode == '40') {
+            ++selectedfoundProgramIndex;
+            if (selectedfoundProgramIndex >= foundPrograms.length) {
+                selectedfoundProgramIndex = 0;
+            }
+        }
+        else if (keyCode == '38') {
+            --selectedfoundProgramIndex;
+            if (selectedfoundProgramIndex < 0) {
+                selectedfoundProgramIndex = foundPrograms.length - 1;
+            }
+        }
+        if (selectedfoundProgramIndex > -1 && selectedfoundProgramIndex < foundPrograms.length) {
+            goOverfoundProgramItem('div_FoundProgram_' + foundPrograms[selectedfoundProgramIndex].CIPCODE);
+        }
+    }
+    function makeFoundProgramsDivs(foundPrograms, searchedPhrase, divRoot) {
+        // create a root div
+        divRoot.innerHTML = '';
+        var divfoundProgram = null;
+        var height = 0;
+        for (var i = 0; i < foundPrograms.length; i++) {
+            divfoundProgram = document.createElement('div');
+            $(divfoundProgram).attr('id', 'div_FoundProgram_' + foundPrograms[i].CIPCODE);
+            $(divfoundProgram).attr('CIPCODE', foundPrograms[i].CIPCODE);
+            $(divfoundProgram).html(injectBold(foundPrograms[i].ProgramName, searchedPhrase));
+            $(divfoundProgram).attr('index', i);
+            $(divfoundProgram).attr('class', 'program_search_panel_item');
+
+            $(divfoundProgram).bind("click", function () {
+                var index = $(this).attr('index');
+                selectFoundProgram(foundPrograms[index].ProgramName, foundPrograms[index].CIPCODE);
+            });
+
+            $(divfoundProgram).mouseover(function () {
+                var index = $(this).attr('index');
+                onMouseOverFoundProgramItem($(this).attr('id'), index);
+            });
+
+            $(divfoundProgram).mouseout(function () {
+                var index = $(this).attr('index');
+                onMouseOutFoundProgramItem($(this).attr('id'), index);
+            });
+
+            divRoot.appendChild(divfoundProgram);
+        }
+        var tempDiv = document.getElementById("dvTempMeasure");
+        $(tempDiv).html($(divRoot).html());
+        $(divRoot).css("height", $(tempDiv).css('height'));
+        $(tempDiv).html('');
+    }
+
+    function onMouseOverFoundProgramItem(itemId, itemIndex) {
+        //first clear the preselected item whereever it is
+        if (selectedfoundProgramIndex > -1) {
+            goOutfoundProgramItem('div_FoundProgram_' + foundPrograms[selectedfoundProgramIndex].CIPCODE);
+        }
+        //now select the current item
+        selectedfoundProgramIndex = itemIndex;
+        goOverfoundProgramItem(itemId);
+    }
+
+    function onMouseOutFoundProgramItem(itemId, itemIndex) {
+        //we might leave from current item to another one so in case we clear the item
+        if (selectedfoundProgramIndex > -1) {
+            goOutfoundProgramItem('div_FoundProgram_' + foundPrograms[selectedfoundProgramIndex].CIPCODE);
+        }
+        selectedfoundProgramIndex = -1;
+        goOutfoundProgramItem(itemId);
+    }
+
+    function goOverfoundProgramItem(itemId) {
+        var hoveredItem = document.getElementById(itemId);
+        $(hoveredItem).attr("class", "program_search_panel_item_active");
+    }
+    function goOutfoundProgramItem(itemId) {
+        var hoveredItem = document.getElementById(itemId);
+        $(hoveredItem).attr("class", "program_search_panel_item");
+    }
+    function injectPCReportData(response) {
+        var results = response.split(String.fromCharCode(253));
+        var reportTitle = results[0];
+        var reportHeader = results[1];
+        var reportBody = results[2];
+        var reportFooter = results[3];
+        if (reportHeader != '') {
+            $("#dvPCReportTitle").html(reportTitle);
+            $("#dvPCReportHeader").html(reportHeader);
+            $("#dvPCReportFooter").html(reportFooter);
+        }
+        $("#dvPCReportGrid").html(reportBody);
+    }
+    function selectFoundProgram(programName, CIPCODE) {
+        $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").val(programName)
+        var hdnPCCIPCode = document.getElementById(hdnPCCIPCodeId);
+        $(hdnPCCIPCode).val(CIPCODE);
+        var hdnPCProgramName = document.getElementById(hdnPCProgramNameId);
+        $(hdnPCProgramName).val(programName);
+        GreyOut();
+        showAjaxLoader();
+        SendAjax('BGP.aspx', "action=pcreport&cipcode=" + CIPCODE + "&programname=" + programName, function (response) {
+            hideAjaxLoader();
+            if (response.length > 0) {
+                if (response != "error") {
+                    /*************Injecting Data******/
+                    injectPCReportData(response);
+                    /*********END: Injecting data*****/
+                    opennedPannelId = 'dvPCReportPanel';
+                    adjustToCenter("dvPCReportPanel");
+                    $("#dvPCReportPanel").show();
+                    pc.cipCode = CIPCODE;
+                    pc.programName = programName;
+
+                }
+                else {
+                    alert("Please try again.");
+                    UndoGreyOut();
+                }
+            }
+            else {
+                alert("Please try again.");
+                UndoGreyOut();
+            }
+        });
+
+    }
+    function keyDownOnFoundProgramsList(e) {
+
+        // 40: user pressed arrow down button
+        // 38: user pressed arrow up button
+
+        if (e.keyCode == '27') {
+            $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").val('');
+            closeAutocomplete();
+        }
+        if ((e.keyCode == '40' || e.keyCode == '38') && foundPrograms.length > 0) {
+            navigateFoundItems(e.keyCode);
+        }
+        if (e.keyCode == '13') {
+            getPCReportBasedOnUserDataEntry();
+        }
+
+    }
+
+    function getPCReportBasedOnUserDataEntry() {
+        if (selectedfoundProgramIndex > -1 && foundPrograms.length > 0) {
+            selectFoundProgram(foundPrograms[selectedfoundProgramIndex].ProgramName, foundPrograms[selectedfoundProgramIndex].CIPCODE);
+            closeAutocomplete();
+        }
+        else {
+            var txtSearchValue = $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").val();
+            var previousSearch = $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").attr('PreviousSearch');
+            if (txtSearchValue.length > 0) {
+                $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").attr('PreviousSearch', txtSearchValue);
+                SendAjax('BGP.aspx', "action=searchprogramname&searchvalue=" + txtSearchValue, function (response) {
+                    foundPrograms = jQuery.parseJSON(response);
+                    if (foundPrograms.length > 0) {
+                        selectFoundProgram(foundPrograms[0].ProgramName, foundPrograms[0].CIPCODE);
+                    }
+                    else {
+                        alert("Please type a valid program.");
+                    }
+                });
+            }
+
+        }
+    }
+
+    function closeAutocomplete() {
+
+        foundPrograms = [];
+        $("#dvFoundProgramList").css('display', 'none');
+        $("#dvFoundProgramList").html('');
+        selectedfoundProgramIndex = -1;
+    }
+
+    function changeButtonImage(itemId,url) {
+        var imgObj=document.getElementById(itemId);
+        $(imgObj).attr('src',url);
+    }
+
+    function clearPCSearch() {
+        $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").val('');
+        $("#ctl00_cphBody_ProgramChargesControl_txtSearchProgram").attr('PreviousSearch', '');
+        closeAutocomplete();
+    }
+
+    function goShowPCReport() {
+        getPCReportBasedOnUserDataEntry();
+    }
+    </script>
+
+    <div style="height:37px;margin-bottom:9px;"><img src="./College Affordability and Transparency Center_files/graphic_title_programcharges.gif" alt="How much do career and vocational programs cost?" title="How much do career and vocational programs cost?"></div>
+    <div style="width:300px;height:130px;margin-bottom:62px;"><span style="direction: ltr;font-size:13px;color:#333333;line-height:18px;">Begin typing the name of a program (for example, “Cosmetology”) to generate a list of institutions that offer the program and the tuition and net prices they charge for the entire program. Data are reported by institutions on their largest program and are for full-time beginning undergraduate students. Not all institutions offering these vocational programs are included on this list. For a full list of institutions offering a program, go to <a href="http://nces.ed.gov/collegenavigator/" target="_blank">College Navigator</a> and search by program/major.</span></div>
+    <div style="margin-bottom:5px;"><span style="font-size:13px;font-weight:bold;color:#336666;">Select a Program</span></div>
+    <input name="ctl00$cphBody$ProgramChargesControl$txtSearchProgram" type="text" id="ctl00_cphBody_ProgramChargesControl_txtSearchProgram" onkeypress="return disableEnterKey(event)" previoussearch="" autocomplete="off" style="border:1px solid #5F798F;width:316px;font-size:13px;color:#333333">
+    <div class="program_search_panel" id="dvFoundProgramList" style="display:none;z-index:1;position:absolute;padding:0px;width:315.5px; //width:318px;border:1px solid #5F798F"></div>
+    <div style="margin-top:8px;"><div style="float:left;cursor:pointer;" onmouseout="changeButtonImage(&#39;imgGoSearchPC&#39;,&#39;images/button_go_notselect.gif&#39;)" onmouseover="changeButtonImage(&#39;imgGoSearchPC&#39;,&#39;images/button_go_select.gif&#39;)" onclick="goShowPCReport()"><img id="imgGoSearchPC" alt="Go" title="Go" src="./College Affordability and Transparency Center_files/button_go_notselect.gif"></div><div style="float:left;cursor:pointer;" onmouseout="changeButtonImage(&#39;imgClearSearchPC&#39;,&#39;images/button_clear_notselect.gif&#39;)" onmouseover="changeButtonImage(&#39;imgClearSearchPC&#39;,&#39;images/button_clear_select.gif&#39;)" onclick="clearPCSearch()"><img id="imgClearSearchPC" alt="Clear" title="Clear" src="./College Affordability and Transparency Center_files/button_clear_notselect.gif"></div><div style="clear:both;"></div></div>
+    <div id="dvTempMeasure" class="program_search_panel" style="width:315.5px;display:none;"></div>
+
+
+
+
+				</div>
+				<div>
+					<img src="./College Affordability and Transparency Center_files/image_sep_short.png" alt=" " title=" " height="18px">
+				</div>
+				<div>
+					<a target="_blank" href="http://www.fafsa.ed.gov/" style="border: 0px;">
+						<img src="./College Affordability and Transparency Center_files/graphic_applyfor.png" alt="Apply for Financial Aid" title="Apply for Financial Aid" style="border: 0px;"></a>
+				</div>
+				<div>
+					<img src="./College Affordability and Transparency Center_files/image_sep_short.png" alt=" " title=" ">
+				</div>
+				<div>
+					<a target="_blank" href="http://nces.ed.gov/collegenavigator/" style="border: 0px;">
+						<img src="./College Affordability and Transparency Center_files/grapic_searchfor.png" alt="Search for Colleges" title="Search for Colleges" style="border: 0px;"></a>
+				</div>
+			</div>
+			<div style="clear: both;"></div>
+			<div>
+				<img src="./College Affordability and Transparency Center_files/image_sep_long.png" alt=" " title=" " width="960px">
+			</div>
+			<div style="position: absolute; z-index: 5;">
+				<div style="background-image: url(images/image_bottom_top.png); background-repeat: no-repeat; height: 19px; margin-left: 1px; width: 960px;"></div>
+				<div style="background-image: url(images/image_bottom_middle.png); background-repeat: repeat-y; height: 140px; width: 960px; padding-left: 35px;">
+					<div>
+						<img src="./College Affordability and Transparency Center_files/graphic_title_college.gif" alt="How fast are college costs going up?" title="How fast are college costs going up?">
+					</div>
+					<div style="width: 870px; margin-top: 9px;">
+						<div style="font-size: 13px; color: #333333; line-height: 18px;">Select a type of institution below to see which ones have the highest increases in tuition and fees and net prices (cost of attendance after grant and scholarship aid). Data are for full-time beginning undergraduate students.</div>
+					</div>
+					<div style="width: 795px; padding-top: 10px;">
+						<span style="direction: ltr; font-weight: bold; color: #333333; font-size: 13px;">Sector:&nbsp;&nbsp;</span>
+						<select name="ctl00$cphBody$ddlSectors" id="ctl00_cphBody_ddlSectors" style="font-weight: bold; color: #333333; font-size: 13px;">
+	<option value="1">Public, 4-year or above                           </option>
+	<option value="2">Private not-for-profit, 4-year or above           </option>
+	<option value="3">Private for-profit, 4-year or above               </option>
+	<option value="4">Public, 2-year                                    </option>
+	<option value="5">Private not-for-profit, 2-year                    </option>
+	<option value="6">Private for-profit, 2-year                        </option>
+	<option value="7">Public, less-than-2-year                          </option>
+	<option value="8">Private not-for-profit, less-than-2-year          </option>
+	<option value="9">Private for-profit, less-than-2-year              </option>
+
+</select>
+					</div>
+					<div style="margin-top: 5px;">
+						<div style="float: left; width: 790px; margin-top: 13px;" class="report_title2 print_report_title2">National Average Percent Change: <span id="spnPercentChange_Tuition">6.6</span></div>
+						<div style="float: left;">
+							<table cellpadding="0px" cellspacing="0px">
+								<tbody>
+									<tr>
+										<td>
+											<div style="margin-right: 10px; cursor: pointer;" onclick="printElement(&#39;dvCATWTuitionTitle&#39;,&#39;dvCATWTuitionHeader&#39;,&#39;dvCATWTuitionGrid&#39;,&#39;dvCATWTuitionFooter&#39;,0,0,875,580,&#39;onMouseOutReportRow|onMouseOverReportRow&#39;)">
+												<img src="./College Affordability and Transparency Center_files/icon_print.gif" alt="Print" title="Print">
+											</div>
+										</td>
+										<td>
+											<a sectorid="0" onclick="setHiddenField_Order_WLReport(&#39;tuition&#39;);" id="ctl00_cphBody_lbDownloadCATWTuitionReport" href="javascript:__doPostBack(&#39;ctl00$cphBody$lbDownloadCATWTuitionReport&#39;,&#39;&#39;)"><img style="border:0px" src="./College Affordability and Transparency Center_files/icon_download.gif" alt="Download" title="Download"></a></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+						<div style="clear: both;"></div>
+					</div>
+				</div>
+				<div>
+					<div style="height: 11px;">
+						<img src="./College Affordability and Transparency Center_files/image_bottom_insidetop.png" title=" " alt=" ">
+					</div>
+					<div style="background-image: url(images/image_bottom_insidemiddle.png); background-repeat: repeat-y; padding-left: 35px; height: 240px; width: 961px;">
+						<div id="divSectionOne" style="border: 0px solid green;">
+							<div style="display: none;">
+								<div id="dvCATWTuitionTitle"><div class="print_report_title1"><center>How fast are college costs going up?</center></div><div class="print_report_title2"><center>Public, 4-year or above                            - Tuition</center></div><div class="print_report_title2"><center>National Average Percent Change: 6.6</center></div></div>
+							</div>
+							<div style="float: left; margin-right: 9px;">
+								<img src="./College Affordability and Transparency Center_files/image_tag_tuition.gif" alt="Tuition" title="Tuition">
+							</div>
+							<div style="float: left;">
+								<div style="float: left;">
+									<img src="./College Affordability and Transparency Center_files/image_tag_bg_left.gif" alt=" " title=" ">
+								</div>
+								<div style="background-image: url(images/image_tag_bg_middle.gif); background-repeat: repeat-x; float: left; height: 28px; width: 820px;">
+									<div id="dvCATWTuitionHeader"><table cellspacing="0px" cellpadding="0px" border="0" style="width:820px;">
+	<tbody><tr>
+		<td style="width:503px;"><div class="dvCATWTuitionHeader_Sort" style="cursor:pointer;" orderby="Instnm" ordertype="desc" onclick="onCATWTuitionHeaderSortClick(this)">Institution <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:55px;"><div class="dvCATWTuitionHeader_Sort" style="cursor:pointer;" orderby="Stabbr,pctchg desc" ordertype="desc" onclick="onCATWTuitionHeaderSortClick(this)">State <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:80px;text-align:right;"><div class="dvCATWTuitionHeader_Sort" style="cursor:pointer;" orderby="Tuitfee1" ordertype="desc" onclick="onCATWTuitionHeaderSortClick(this)">2012-13 <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:80px;text-align:right;"><div class="dvCATWTuitionHeader_Sort" style="cursor:pointer;" orderby="Tuitfee3" ordertype="desc" onclick="onCATWTuitionHeaderSortClick(this)">2014-15 <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:102px;text-align:right;"><div class="dvCATWTuitionHeader_Sort" style="cursor:pointer;" orderby="pctchg" ordertype="desc" onclick="onCATWTuitionHeaderSortClick(this)">% Increase <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif"></div></td>
+	</tr>
+</tbody></table></div>
+								</div>
+								<div style="float: left;">
+									<img src="./College Affordability and Transparency Center_files/image_tag_bg_right.gif" alt=" " title=" ">
+								</div>
+								<div style="clear: both;"></div>
+								<div id="dvCATWTuitionGrid"><table cellspacing="0px" cellpadding="0px" border="0" style="width:820px;">
+	<tbody><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=142328&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Lewis-Clark State College</td><td style="width:55px;padding-bottom:5px;">ID</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,562</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,624</td><td style="width:102px;padding-bottom:5px;text-align:right;">55</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=227526&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Prairie View A &amp; M University</td><td style="width:55px;padding-bottom:5px;">TX</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,404</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,461</td><td style="width:102px;padding-bottom:5px;text-align:right;">48</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=207722&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Science and Arts of Oklahoma</td><td style="width:55px;padding-bottom:5px;">OK</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,320</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,270</td><td style="width:102px;padding-bottom:5px;text-align:right;">45</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=188058&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Northern New Mexico College</td><td style="width:55px;padding-bottom:5px;">NM</td><td style="width:80px;padding-bottom:5px;text-align:right;">$2,827</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,060</td><td style="width:102px;padding-bottom:5px;text-align:right;">44</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=226806&#39;)" class="print_report_body_row0  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Midland College</td><td style="width:55px;padding-bottom:5px;">TX</td><td style="width:80px;padding-bottom:5px;text-align:right;">$2,160</td><td style="width:80px;padding-bottom:5px;text-align:right;">$2,970</td><td style="width:102px;padding-bottom:5px;text-align:right;">38</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=221759&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">The University of Tennessee-Knoxville</td><td style="width:55px;padding-bottom:5px;">TN</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,092</td><td style="width:80px;padding-bottom:5px;text-align:right;">$11,876</td><td style="width:102px;padding-bottom:5px;text-align:right;">31</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=187596&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Navajo Technical University</td><td style="width:55px;padding-bottom:5px;">NM</td><td style="width:80px;padding-bottom:5px;text-align:right;">$2,590</td><td style="width:80px;padding-bottom:5px;text-align:right;">$3,400</td><td style="width:102px;padding-bottom:5px;text-align:right;">31</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=482149&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Georgia Regents University</td><td style="width:55px;padding-bottom:5px;">GA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,622</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,326</td><td style="width:102px;padding-bottom:5px;text-align:right;">30</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=231624&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">College of William and Mary</td><td style="width:55px;padding-bottom:5px;">VA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$13,570</td><td style="width:80px;padding-bottom:5px;text-align:right;">$17,656</td><td style="width:102px;padding-bottom:5px;text-align:right;">30</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159382&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Louisiana State University-Alexandria</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,617</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,009</td><td style="width:102px;padding-bottom:5px;text-align:right;">30</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159993&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Louisiana at Monroe</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,443</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,963</td><td style="width:102px;padding-bottom:5px;text-align:right;">28</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=160658&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Louisiana at Lafayette</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,374</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,872</td><td style="width:102px;padding-bottom:5px;text-align:right;">28</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=187897&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">New Mexico Highlands University</td><td style="width:55px;padding-bottom:5px;">NM</td><td style="width:80px;padding-bottom:5px;text-align:right;">$3,504</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,500</td><td style="width:102px;padding-bottom:5px;text-align:right;">28</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159966&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Nicholls State University</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,679</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,234</td><td style="width:102px;padding-bottom:5px;text-align:right;">27</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=148654&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Illinois at Springfield</td><td style="width:55px;padding-bottom:5px;">IL</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,952</td><td style="width:80px;padding-bottom:5px;text-align:right;">$11,367</td><td style="width:102px;padding-bottom:5px;text-align:right;">27</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=100654&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Alabama A &amp; M University</td><td style="width:55px;padding-bottom:5px;">AL</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,182</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,096</td><td style="width:102px;padding-bottom:5px;text-align:right;">27</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159939&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of New Orleans</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,850</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,392</td><td style="width:102px;padding-bottom:5px;text-align:right;">26</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159391&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Louisiana State University and Agricultural &amp; Mechanical College</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,989</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,750</td><td style="width:102px;padding-bottom:5px;text-align:right;">25</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159416&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Louisiana State University-Shreveport</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,943</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,168</td><td style="width:102px;padding-bottom:5px;text-align:right;">25</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=160612&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Southeastern Louisiana University</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,242</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,547</td><td style="width:102px;padding-bottom:5px;text-align:right;">25</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=234030&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Virginia Commonwealth University</td><td style="width:55px;padding-bottom:5px;">VA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,886</td><td style="width:80px;padding-bottom:5px;text-align:right;">$12,398</td><td style="width:102px;padding-bottom:5px;text-align:right;">25</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=188304&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Western New Mexico University</td><td style="width:55px;padding-bottom:5px;">NM</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,314</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,346</td><td style="width:102px;padding-bottom:5px;text-align:right;">24</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159717&#39;)" class="print_report_body_row0  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">McNeese State University</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,088</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,334</td><td style="width:102px;padding-bottom:5px;text-align:right;">24</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=160038&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Northwestern State University of Louisiana</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,557</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,863</td><td style="width:102px;padding-bottom:5px;text-align:right;">24</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=126182&#39;)" class="print_report_body_row0  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Adams State University</td><td style="width:55px;padding-bottom:5px;">CO</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,448</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,014</td><td style="width:102px;padding-bottom:5px;text-align:right;">24</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159009&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Grambling State University</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,273</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,525</td><td style="width:102px;padding-bottom:5px;text-align:right;">24</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=141981&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Hawaii-West Oahu</td><td style="width:55px;padding-bottom:5px;">HI</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,602</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,888</td><td style="width:102px;padding-bottom:5px;text-align:right;">23</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=234951&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Clover Park Technical College</td><td style="width:55px;padding-bottom:5px;">WA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,561</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,617</td><td style="width:102px;padding-bottom:5px;text-align:right;">23</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=128391&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Western State Colorado University</td><td style="width:55px;padding-bottom:5px;">CO</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,449</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,874</td><td style="width:102px;padding-bottom:5px;text-align:right;">22</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=133508&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Florida SouthWestern State College</td><td style="width:55px;padding-bottom:5px;">FL</td><td style="width:80px;padding-bottom:5px;text-align:right;">$2,728</td><td style="width:80px;padding-bottom:5px;text-align:right;">$3,341</td><td style="width:102px;padding-bottom:5px;text-align:right;">22</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=139621&#39;)" class="print_report_body_row0  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">East Georgia State College</td><td style="width:55px;padding-bottom:5px;">GA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$3,513</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,284</td><td style="width:102px;padding-bottom:5px;text-align:right;">22</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159647&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Louisiana Tech University</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,574</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,052</td><td style="width:102px;padding-bottom:5px;text-align:right;">22</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=157058&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Kentucky State University</td><td style="width:55px;padding-bottom:5px;">KY</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,096</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,404</td><td style="width:102px;padding-bottom:5px;text-align:right;">21</td>
+	</tr>
+</tbody></table></div>
+							</div>
+							<div style="clear: both;"></div>
+						</div>
+					</div>
+					<div style="background-image: url(images/image_bottom_bottom.png); background-repeat: no-repeat; height: 11px; font-size: 5px; width: 961px;">&nbsp;</div>
+					<div style="background-image: url(images/image_bottom_middle.png); background-repeat: repeat-y; height: 80px; width: 960px; padding-left: 35px;">
+						<div id="dvCATWTuitionFooter"><div style="width:inherit;padding-top:9px;  //padding-top:6px;"><span style="direction: ltr;font-family:Arial;font-size:10px;color:#333333;">SOURCE: U.S. Department of Education, National Center for Education Statistics, Integrated Postsecondary Education Data System (IPEDS), Fall 2014, Institutional Characteristics component and Winter 2014-15, Student Financial Aid component.</span></div></div>
+						<div>
+							<div style="float: left; width: 790px; margin-top: 17px;" class="report_title2 print_report_title2"><a name="npchg">National Average Percent Change:</a> <span id="spnPercentChange_NetPrice">5.6</span></div>
+							<div style="padding-top: 1px; margin-top: 5px; float: left;">
+								<table cellpadding="0px" cellspacing="0px">
+									<tbody>
+										<tr>
+											<td>
+												<div style="margin-right: 10px; cursor: pointer;" onclick="printElement(&#39;dvCATWNetPriceTitle&#39;,&#39;dvCATWNetPriceHeader&#39;,&#39;dvCATWNetPriceGrid&#39;,&#39;dvCATWNetPriceFooter&#39;,0,0,875,580,&#39;onMouseOutReportRow|onMouseOverReportRow&#39;)">
+													<img src="./College Affordability and Transparency Center_files/icon_print.gif" alt="Print" title="Print">
+												</div>
+											</td>
+											<td>
+												<a sectorid="0" onclick="setHiddenField_Order_WLReport(&#39;netprice&#39;);" id="ctl00_cphBody_CATLinkButton1" href="javascript:__doPostBack(&#39;ctl00$cphBody$CATLinkButton1&#39;,&#39;&#39;)"><img style="border:0px" src="./College Affordability and Transparency Center_files/icon_download.gif" alt="Download" title="Download"></a></td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+							<div style="clear: both;"></div>
+						</div>
+					</div>
+					<div style="height: 11px;">
+						<img src="./College Affordability and Transparency Center_files/image_bottom_insidetop.png" alt=" " title=" ">
+					</div>
+					<div style="background-image: url(images/image_bottom_insidemiddle.png); background-repeat: repeat-y; padding-left: 35px; height: 240px; width: 961px;">
+						<div id="divSectionTwo" style="padding-top: 1px; border: 0px solid red;">
+							<div style="display: none;">
+								<div id="dvCATWNetPriceTitle"><div class="print_report_title1"><center>How fast are college costs going up?</center></div><div class="print_report_title2"><center>Public, 4-year or above                            - Net Price</center></div><div class="print_report_title2"><center>National Average Percent Change: 5.6</center></div></div>
+							</div>
+							<div style="float: left; margin-right: 9px;">
+								<img src="./College Affordability and Transparency Center_files/image_tag_netprice.gif" alt="Net Price" title="Net Price">
+							</div>
+							<div style="float: left;">
+								<div style="float: left;">
+									<img src="./College Affordability and Transparency Center_files/image_tag_bg_left.gif" alt=" " title=" ">
+								</div>
+								<div style="background-image: url(images/image_tag_bg_middle.gif); background-repeat: repeat-x; float: left; height: 28px; width: 820px;">
+									<div id="dvCATWNetPriceHeader"><table cellspacing="0px" cellpadding="0px" border="0" style="width:820px;">
+	<tbody><tr>
+		<td style="width:503px;"><div class="dvCATWNetPriceHeader_Sort" orderby="Instnm" ordertype="desc" style="cursor:pointer;" onclick="onCATWNetPriceHeaderSortClick(this)">Institution <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:55px;"><div class="dvCATWNetPriceHeader_Sort" orderby="Stabbr,pctchgNP desc" ordertype="desc" style="cursor:pointer;" onclick="onCATWNetPriceHeaderSortClick(this)">State <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:80px;text-align:right;"><div class="dvCATWNetPriceHeader_Sort" orderby="NetPriceY0" ordertype="desc" style="cursor:pointer;" onclick="onCATWNetPriceHeaderSortClick(this)">2011-12 <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:80px;text-align:right;"><div class="dvCATWNetPriceHeader_Sort" orderby="NetPriceY2" ordertype="desc" style="cursor:pointer;" onclick="onCATWNetPriceHeaderSortClick(this)">2013-14 <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif" style="display:none;"></div></td><td style="width:102px;text-align:right;"><div class="dvCATWNetPriceHeader_Sort" orderby="pctchgNP" ordertype="desc" style="cursor:pointer;" onclick="onCATWNetPriceHeaderSortClick(this)">% Increase <img title="Sort" alt="Sort" src="./College Affordability and Transparency Center_files/popup_icon_down.gif"></div></td>
+	</tr>
+</tbody></table></div>
+								</div>
+								<div style="float: left;">
+									<img src="./College Affordability and Transparency Center_files/image_tag_bg_right.gif" alt=" " title=" ">
+								</div>
+								<div style="clear: both;"></div>
+								<div id="dvCATWNetPriceGrid"><table cellspacing="0px" cellpadding="0px" border="0" style="width:820px;">
+	<tbody><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=200466&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Sitting Bull College</td><td style="width:55px;padding-bottom:5px;">ND</td><td style="width:80px;padding-bottom:5px;text-align:right;">$1,060</td><td style="width:80px;padding-bottom:5px;text-align:right;">$3,291</td><td style="width:102px;padding-bottom:5px;text-align:right;">210</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=240790&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Northern Marianas College</td><td style="width:55px;padding-bottom:5px;">MP</td><td style="width:80px;padding-bottom:5px;text-align:right;">$692</td><td style="width:80px;padding-bottom:5px;text-align:right;">$1,919</td><td style="width:102px;padding-bottom:5px;text-align:right;">177</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=126711&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Colorado Mountain College</td><td style="width:55px;padding-bottom:5px;">CO</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,104</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,523</td><td style="width:102px;padding-bottom:5px;text-align:right;">132</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=188058&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Northern New Mexico College</td><td style="width:55px;padding-bottom:5px;">NM</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,181</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,736</td><td style="width:102px;padding-bottom:5px;text-align:right;">109</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=207351&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Oklahoma Panhandle State University</td><td style="width:55px;padding-bottom:5px;">OK</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,718</td><td style="width:80px;padding-bottom:5px;text-align:right;">$11,945</td><td style="width:102px;padding-bottom:5px;text-align:right;">78</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=380377&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Northwest Indian College</td><td style="width:55px;padding-bottom:5px;">WA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,614</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,144</td><td style="width:102px;padding-bottom:5px;text-align:right;">55</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=236072&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">North Seattle College</td><td style="width:55px;padding-bottom:5px;">WA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$3,594</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,554</td><td style="width:102px;padding-bottom:5px;text-align:right;">55</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=160658&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Louisiana at Lafayette</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,891</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,463</td><td style="width:102px;padding-bottom:5px;text-align:right;">44</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=190558&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">College of Staten Island CUNY</td><td style="width:55px;padding-bottom:5px;">NY</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,773</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,575</td><td style="width:102px;padding-bottom:5px;text-align:right;">41</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=224545&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Texas A &amp; M University-Texarkana</td><td style="width:55px;padding-bottom:5px;">TX</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,829</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,221</td><td style="width:102px;padding-bottom:5px;text-align:right;">41</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=198543&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Fayetteville State University</td><td style="width:55px;padding-bottom:5px;">NC</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,906</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,848</td><td style="width:102px;padding-bottom:5px;text-align:right;">40</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=207564&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Oklahoma State University Institute of Technology</td><td style="width:55px;padding-bottom:5px;">OK</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,033</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,381</td><td style="width:102px;padding-bottom:5px;text-align:right;">39</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=235343&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Green River Community College</td><td style="width:55px;padding-bottom:5px;">WA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,500</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,978</td><td style="width:102px;padding-bottom:5px;text-align:right;">38</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=171137&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Michigan-Dearborn</td><td style="width:55px;padding-bottom:5px;">MI</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,940</td><td style="width:80px;padding-bottom:5px;text-align:right;">$12,347</td><td style="width:102px;padding-bottom:5px;text-align:right;">38</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=159382&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Louisiana State University-Alexandria</td><td style="width:55px;padding-bottom:5px;">LA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,168</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,813</td><td style="width:102px;padding-bottom:5px;text-align:right;">37</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=139463&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Dalton State College</td><td style="width:55px;padding-bottom:5px;">GA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,562</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,256</td><td style="width:102px;padding-bottom:5px;text-align:right;">37</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=228705&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Texas A &amp; M University-Kingsville</td><td style="width:55px;padding-bottom:5px;">TX</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,930</td><td style="width:80px;padding-bottom:5px;text-align:right;">$12,275</td><td style="width:102px;padding-bottom:5px;text-align:right;">37</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=200086&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Fort Berthold Community College</td><td style="width:55px;padding-bottom:5px;">ND</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,510</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,491</td><td style="width:102px;padding-bottom:5px;text-align:right;">36</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=236513&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Seattle Central College</td><td style="width:55px;padding-bottom:5px;">WA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$3,666</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,953</td><td style="width:102px;padding-bottom:5px;text-align:right;">35</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=198507&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Elizabeth City State University</td><td style="width:55px;padding-bottom:5px;">NC</td><td style="width:80px;padding-bottom:5px;text-align:right;">$1,846</td><td style="width:80px;padding-bottom:5px;text-align:right;">$2,490</td><td style="width:102px;padding-bottom:5px;text-align:right;">35</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=190512&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">CUNY Bernard M Baruch College</td><td style="width:55px;padding-bottom:5px;">NY</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,016</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,151</td><td style="width:102px;padding-bottom:5px;text-align:right;">35</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=139755&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Georgia Institute of Technology-Main Campus</td><td style="width:55px;padding-bottom:5px;">GA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,116</td><td style="width:80px;padding-bottom:5px;text-align:right;">$12,187</td><td style="width:102px;padding-bottom:5px;text-align:right;">34</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=106245&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">University of Arkansas at Little Rock</td><td style="width:55px;padding-bottom:5px;">AR</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,506</td><td style="width:80px;padding-bottom:5px;text-align:right;">$12,780</td><td style="width:102px;padding-bottom:5px;text-align:right;">34</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=230597&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Snow College</td><td style="width:55px;padding-bottom:5px;">UT</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,816</td><td style="width:80px;padding-bottom:5px;text-align:right;">$10,461</td><td style="width:102px;padding-bottom:5px;text-align:right;">34</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=100654&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Alabama A &amp; M University</td><td style="width:55px;padding-bottom:5px;">AL</td><td style="width:80px;padding-bottom:5px;text-align:right;">$11,108</td><td style="width:80px;padding-bottom:5px;text-align:right;">$14,746</td><td style="width:102px;padding-bottom:5px;text-align:right;">33</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=100830&#39;)" class="print_report_body_row1  " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Auburn University at Montgomery</td><td style="width:55px;padding-bottom:5px;">AL</td><td style="width:80px;padding-bottom:5px;text-align:right;">$9,690</td><td style="width:80px;padding-bottom:5px;text-align:right;">$12,827</td><td style="width:102px;padding-bottom:5px;text-align:right;">32</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=106458&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Arkansas State University-Main Campus</td><td style="width:55px;padding-bottom:5px;">AR</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,708</td><td style="width:80px;padding-bottom:5px;text-align:right;">$11,499</td><td style="width:102px;padding-bottom:5px;text-align:right;">32</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=139968&#39;)" class="print_report_body_row1    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Gordon State College</td><td style="width:55px;padding-bottom:5px;">GA</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,939</td><td style="width:80px;padding-bottom:5px;text-align:right;">$10,515</td><td style="width:102px;padding-bottom:5px;text-align:right;">32</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=190549&#39;)" class="print_report_body_row0    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">CUNY Brooklyn College</td><td style="width:55px;padding-bottom:5px;">NY</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,485</td><td style="width:80px;padding-bottom:5px;text-align:right;">$7,220</td><td style="width:102px;padding-bottom:5px;text-align:right;">32</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=185262&#39;)" class="print_report_body_row1    " style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Kean University</td><td style="width:55px;padding-bottom:5px;">NJ</td><td style="width:80px;padding-bottom:5px;text-align:right;">$11,456</td><td style="width:80px;padding-bottom:5px;text-align:right;">$15,110</td><td style="width:102px;padding-bottom:5px;text-align:right;">32</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=137315&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">South Florida State College</td><td style="width:55px;padding-bottom:5px;">FL</td><td style="width:80px;padding-bottom:5px;text-align:right;">$4,137</td><td style="width:80px;padding-bottom:5px;text-align:right;">$5,436</td><td style="width:102px;padding-bottom:5px;text-align:right;">31</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=229018&#39;)" class="print_report_body_row1" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">The University of Texas of the Permian Basin</td><td style="width:55px;padding-bottom:5px;">TX</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,290</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,245</td><td style="width:102px;padding-bottom:5px;text-align:right;">31</td>
+	</tr><tr onmouseover="onMouseOverReportRow(this)" onmouseout="onMouseOutReportRow(this)" onclick="window.open(&#39;http://nces.ed.gov/collegenavigator/?id=133508&#39;)" class="print_report_body_row0" style="cursor:pointer;">
+		<td style="width:503px;padding-bottom:5px;">Florida SouthWestern State College</td><td style="width:55px;padding-bottom:5px;">FL</td><td style="width:80px;padding-bottom:5px;text-align:right;">$6,459</td><td style="width:80px;padding-bottom:5px;text-align:right;">$8,420</td><td style="width:102px;padding-bottom:5px;text-align:right;">30</td>
+	</tr>
+</tbody></table></div>
+							</div>
+							<div style="clear: both;"></div>
+						</div>
+					</div>
+				</div>
+				<div style="background-image: url(images/image_bottom_bottom.png); background-repeat: no-repeat; height: 11px; font-size: 5px; width: 961px;">&nbsp;</div>
+				<div style="background-image: url(images/image_bottom_middle.png); background-repeat: repeat-y; height: 310px; //height: 315px; width: 960px; padding-left: 35px;">
+					<div id="dvCATWNetPriceFooter" style="width: 880px;"><div style="width:inherit;padding-top:9px;"><span style="direction: ltr;font-family:Arial;font-size:10px;color:#333333;">Note: Average net price is generated by subtracting the average amount of federal, state/local government, or institutional grant or scholarship aid from the total cost of attendance. Total cost of attendance is the sum of published tuition and required fees (lower of in-district or in-state, where applicable), books and supplies, and the weighted average for room and board and other expenses.</span></div><div style="width:inherit;padding-top:9px;"><span style="direction: ltr;font-family:Arial;font-size:10px;color:#333333;">Average net price is for full-time beginning undergraduate students who received grant or scholarship aid from federal, state or local governments, or the institution.</span></div><div style="width:inherit;margin-top:9px;"><span style="direction: ltr;font-family:Arial;font-size:10px;color:#333333;">SOURCE: U.S. Department of Education, National Center for Education Statistics, Integrated Postsecondary Education Data System (IPEDS), Fall 2014, Institutional Characteristics component and Winter 2014-15, Student Financial Aid component.</span></div></div>
+					<div style="width: 880px; margin-top: 9px;">
+						<div style="font-weight: bold; font-family: Arial; font-size: 11px; color: #333333; margin-top: 15px;">To download the data file of all Title IV institutions used to generate the 2016 College Affordability and Transparency lists, <a style="text-decoration: underline; cursor: pointer; direction: ltr; font-family: Arial; font-size: 11px; color: #333333; font-weight: bold;" href="https://collegecost.ed.gov/catc/resources/CATClists2014.xlsx" target="_blank">click here.</a></div>
+						<div id="dvXLLinksPanelBenchMark" style="font-family: Arial; font-size: 11px; color: #333333; font-weight: bold; width: 510px; padding: 0px; margin-top: 7px;"><span>For archived College Affordability and Transparency list data, </span><span id="spnShowXlLinks" style="text-decoration: underline; cursor: pointer; direction: ltr; font-family: Arial; font-size: 11px; color: #333333; font-weight: bold;" onclick="showXLLinks(this)">click here.</span></div>
+						<div style="font-weight: bold; font-family: Arial; font-size: 11px; color: #333333; margin-top: 7px;">For more information on the data used in these lists, go to the  <a style="text-decoration: underline; cursor: pointer; direction: ltr; font-family: Arial; font-size: 11px; color: #333333; font-weight: bold;" href="http://nces.ed.gov/ipeds/" target="_blank">IPEDS website.</a></div>
+						<div style="margin-top: 8px; border: 1px solid #FFFFFF; padding: 5px; padding-top: 2px;">
+							<div>What are some reasons for the increase in college costs?</div>
+							<div style="margin-top: 4px;">
+								<div style="float: left; padding-top: 5px;">
+									<a href="https://collegecost.ed.gov/catc/resources/CATEF%20Summary%20Guide%20to%20College%20Costs%202014.pdf" target="_blank">
+										<img src="./College Affordability and Transparency Center_files/icon_report.gif" alt="Report" title="CATEF Report"></a>
+								</div>
+								<div style="float: left; font-size: 12px; color: #333333; line-height: 17px; width: 800px; margin-left: 5px;">Institutions placed on the CATC highest tuition or net price list are required by the Higher Education Act of 1965 to complete the College Affordability and Transparency Form (CATEF) to explain why costs have gone up at their school, and how the rising costs could be addressed. The CATEF Summary Guide to College Costs summarizes institutions’ responses to their inclusion on the lists.</div>
+								<div style="clear: both;"></div>
+							</div>
+							<div id="dvSummaryReportBenchMark" style="font-family: Arial; font-size: 11px; color: #333333; font-weight: bold; width: 550px; padding: 0px; margin-top: 7px;"><span>For Summary Reports of responses from institutions on CATC lists, </span><span id="spnShowSummaryReportXlLinks" style="text-decoration: underline; cursor: pointer; direction: ltr; font-family: Arial; font-size: 11px; color: #333333; font-weight: bold;" onclick="showSummaryReportXLLinks(this)">click here.</span></div>
+						</div>
+
+					</div>
+				</div>
+				<div style="background-image: url(images/image_bottom_bottom2.png); background-repeat: no-repeat; height: 36px; width: 961px; margin-left: 1px;"></div>
+			</div>
+		</div>
+		<!--Div Position adjaustment-->
+		<div style="position: absolute; margin-top: 840px; //margin-top: 849px; z-index: 1;">
+			<img src="./College Affordability and Transparency Center_files/background_bottom.gif" alt=" " title=" ">
+		</div>
+	</div>
+	<div id="dvAYCReportPanel" style="display: none; height: 400px; width: 920px; position: absolute; z-index: 600;">
+		<div style="background-image: url(images/popup_image_top.png); background-repeat: no-repeat; height: 41px; width: 960px;"></div>
+		<div style="background-image: url(images/popup_image_middle.png); background-repeat: repeat-y; height: 60px; width: 960px;">
+			<div>
+				<table cellpadding="0px" cellspacing="0px" style="margin-left: 20px;">
+					<tbody>
+						<tr>
+							<td>
+								<div style="padding-left: 22px; width: 750px">
+									<div id="dvAYCReportTitle"></div>
+								</div>
+							</td>
+							<td>
+								<table cellpadding="0px" cellspacing="0px" style="vertical-align: top; margin-bottom: 20px;">
+									<tbody>
+										<tr>
+											<td>
+												<div style="margin-bottom: 3px; margin-right: 12px; cursor: pointer;" onclick="printElement(&#39;dvAYCReportTitle&#39;,&#39;dvAYCReportHeader&#39;,&#39;dvAYCReportGrid&#39;,&#39;dvAYCReportFooter&#39;,0,0,910,580,&#39;onMouseOutReportRow|onMouseOverReportRow&#39;)">
+													<img src="./College Affordability and Transparency Center_files/popup_icon_print.gif" alt="Print" title="Print">
+												</div>
+											</td>
+											<td>
+												<a sectorid="0" onclick="setHiddenField_Order_AYCReport();" id="ctl00_cphBody_CATLinkButton2" href="javascript:__doPostBack(&#39;ctl00$cphBody$CATLinkButton2&#39;,&#39;&#39;)" style="margin-right: 15px;"><img style="border:0px" src="./College Affordability and Transparency Center_files/popup_icon_download.gif" alt="Download" title="Download"></a>
+											</td>
+											<td>
+												<div style="cursor: pointer;" onclick="onCloseButtonClick_Panel(&#39;dvAYCReportPanel&#39;)">
+													<img src="./College Affordability and Transparency Center_files/popup_icon_close_notselect.gif" alt="Close" title="Close" onmouseover="onMouseOverClose(this)" onmouseout="onMouseOutClose(this)">
+												</div>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_inside_top.png); background-repeat: no-repeat; height: 10px; font-size: 5px; width: 960px;">&nbsp;</div>
+		<div style="background-image: url(images/popup_image_inside_middle.png); background-repeat: repeat-y; height: 500px; width: 920px; padding-left: 35px;">
+			<div style="float: left;">
+				<img src="./College Affordability and Transparency Center_files/image_tag_bg_left.gif" alt=" " title=" ">
+			</div>
+			<div style="background-image: url(images/image_tag_bg_middle.gif); background-repeat: repeat-x; float: left; height: 28px; width: 860px;">
+				<div id="dvAYCReportHeader">
+				</div>
+			</div>
+			<div style="float: left;">
+				<img src="./College Affordability and Transparency Center_files/image_tag_bg_right.gif" alt=" " title=" ">
+			</div>
+			<div style="clear: both;"></div>
+			<div id="dvAYCReportGrid">
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_inside_bottom.png); background-repeat: no-repeat; height: 11px; font-size: 5px; width: 960px;">&nbsp;</div>
+		<div style="background-image: url(images/popup_image_middle.png); background-repeat: repeat-y; height: 180px; width: 960px;">
+			<div id="dvAYCReportFooter">
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_bottom.png); background-repeat: no-repeat; height: 74px; width: 960px;"></div>
+	</div>
+	<div id="dvPCReportPanel" style="display: none; height: 400px; width: 920px; position: absolute; z-index: 600;">
+		<div style="background-image: url(images/popup_image_top.png); background-repeat: no-repeat; height: 41px; width: 960px; font-size: 5px;">&nbsp;</div>
+		<div style="background-image: url(images/popup_image_middle.png); background-repeat: repeat-y; height: 60px; width: 960px;">
+			<div>
+				<table cellpadding="0px" cellspacing="0px" style="margin-left: 20px;">
+					<tbody>
+						<tr style="">
+							<td>
+								<div style="padding-left: 22px; width: 750px">
+									<div id="dvPCReportTitle"></div>
+								</div>
+							</td>
+							<td>
+								<table cellpadding="0px" cellspacing="0px" style="margin-bottom: 20px;">
+									<tbody>
+										<tr>
+											<td>
+												<div style="margin-right: 12px; margin-bottom: 3px; cursor: pointer;" onclick="printElement(&#39;dvPCReportTitle&#39;,&#39;dvPCReportHeader&#39;,&#39;dvPCReportGrid&#39;,&#39;dvPCReportFooter&#39;,0,0,905,580,&#39;onMouseOutReportRow|onMouseOverReportRow&#39;)">
+													<img src="./College Affordability and Transparency Center_files/popup_icon_print.gif" alt="Print" title="Print">
+												</div>
+											</td>
+											<td>
+												<a sectorid="0" onclick="setHiddenField_Order_PCReport();" id="ctl00_cphBody_CATLinkButton3" href="javascript:__doPostBack(&#39;ctl00$cphBody$CATLinkButton3&#39;,&#39;&#39;)" style="margin-right: 15px;"><img style="border:0px" src="./College Affordability and Transparency Center_files/popup_icon_download.gif" alt="Download" title="Download"></a>
+											</td>
+											<td>
+												<div style="cursor: pointer;" onclick="onCloseButtonClick_Panel(&#39;dvPCReportPanel&#39;)">
+													<img src="./College Affordability and Transparency Center_files/popup_icon_close_notselect.gif" onmouseover="onMouseOverClose(this)" onmouseout="onMouseOutClose(this)" alt="Close" title="Close">
+												</div>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_inside_top.png); background-repeat: no-repeat; height: 10px; width: 960px; font-size: 5px;">&nbsp;</div>
+		<div style="background-image: url(images/popup_image_inside_middle.png); background-repeat: repeat-y; height: 500px; width: 920px; padding-left: 35px;">
+			<div style="float: left;">
+				<img src="./College Affordability and Transparency Center_files/image_tag2_bg_left.gif" alt=" " title=" ">
+			</div>
+			<div style="background-image: url(images/image_tag2_bg_middle.gif); background-repeat: repeat-x; float: left; height: 40px; width: 860px;">
+				<div id="dvPCReportHeader" style="">
+				</div>
+			</div>
+			<div style="float: left;">
+				<img src="./College Affordability and Transparency Center_files/image_tag2_bg_right.gif" alt=" " title=" ">
+			</div>
+			<div style="clear: both;"></div>
+			<div id="dvPCReportGrid">
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_inside_bottom.png); background-repeat: no-repeat; height: 11px; width: 960px; font-size: 5px;">&nbsp;</div>
+		<div style="background-image: url(images/popup_image_middle.png); background-repeat: repeat-y; height: 200px; width: 960px;">
+			<div id="dvPCReportFooter">
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_bottom.png); background-repeat: no-repeat; height: 74px; width: 960px; padding-top: 20px; padding-left: 30px; font-size: 5px;">&nbsp;</div>
+	</div>
+	<div id="dvAboutPagePopup" style="display: none; height: 400px; width: 920px; position: absolute; z-index: 600; margin-left: 25px;">
+		<div style="background-image: url(images/popup_image_top.png); background-repeat: no-repeat; height: 41px; width: 960px;"></div>
+		<div style="background-image: url(images/popup_image_middle.png); background-repeat: repeat-y; height: 159px; width: 960px;">
+			<table cellpadding="0px" cellspacing="0px" style="margin-left: 20px;">
+				<tbody>
+					<tr>
+						<td>
+							<div style="padding-left: 22px; width: 750px; margin-bottom: 6px;">
+								<div id="dvAboutPageTitle">
+									<img src="./College Affordability and Transparency Center_files/about_title.jpg" alt="College Affordability and Transparency Center List Methodology" title="College Affordability and Transparency Center List Methodology">
+								</div>
+							</div>
+						</td>
+						<td>
+							<table cellpadding="0px" cellspacing="0px" style="vertical-align: top; margin-bottom: 6px; width: 135px;">
+								<tbody>
+									<tr>
+										<td style="text-align: right;">
+											<div style="cursor: pointer;" onclick="onCloseButtonClick_Panel(&#39;dvAboutPagePopup&#39;)">
+												<img src="./College Affordability and Transparency Center_files/popup_icon_close_notselect.gif" alt="Close" title="Close" onmouseover="onMouseOverClose(this)" onmouseout="onMouseOutClose(this)">
+											</div>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<div style="margin-left: 43px; width: 840px; font-family: Segoe UI,Arial; font-size: 15px; color: #333333;">
+				The College Affordability and Transparency Center includes information for students, parents, and policymakers about college costs at America’s colleges and universities. The Center includes several lists of institutions based on the tuition and fees and net prices (the price of attendance after considering all grant and scholarship aid) charged to students. These lists meet requirements outlined in the Higher Education Act (HEA) of 1965, as amended, and will be updated annually and posted on the College Navigator website by July 1.
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_inside_top.png); background-repeat: no-repeat; height: 10px; font-size: 5px; width: 960px;">&nbsp;</div>
+		<div style="background-image: url(images/popup_image_inside_middle.png); background-repeat: repeat-y; height: 700px; width: 920px; padding-left: 35px;">
+			<div id="dvAboutPageContent">
+				<iframe src="./College Affordability and Transparency Center_files/about.html" width="898px" height="700px" style="border: none;" frameborder="0">
+					&lt;p&gt;Your browser does not support iframes.&lt;/p&gt;
+				</iframe>
+
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_inside_bottom.png); background-repeat: no-repeat; height: 11px; font-size: 5px; width: 960px;">&nbsp;</div>
+		<div style="background-image: url(images/popup_image_middle.png); background-repeat: repeat-y; height: 15px; width: 960px;">
+			<div id="dvAboutPageFooter">
+			</div>
+		</div>
+		<div style="background-image: url(images/popup_image_bottom.png); background-repeat: no-repeat; height: 74px; width: 960px;"></div>
+	</div>
+	<div id="dvDownloadXLLinksPanel" style="z-index: 100; position: absolute; width: 375px; display: none;">
+		<div>
+			<img alt="" title="" src="./College Affordability and Transparency Center_files/tooltip_top.png">
+		</div>
+		<div style="float: left; background-image: url(images/tooltip_repeator.png); background-repeat: repeat-y; height: 92px; width: 375px;">
+			<div style="margin-left: 30px; margin-top: 5px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/CATClists2013.xlsx" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2015 College Affordability and Transparency data.</a>
+			</div>
+			<div style="margin-left: 30px; margin-top: 5px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/CATClists2012.xls" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2014 College Affordability and Transparency data.</a>
+			</div>
+			<div style="margin-left: 30px; margin-top: 5px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/CATClists2011.xls" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2013 College Affordability and Transparency data.</a>
+			</div>
+			<div style="margin-left: 30px; margin-top: 5px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/CATClists2010.xls" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2012 College Affordability and Transparency data.</a>
+			</div>
+			<div style="margin-left: 30px; margin-top: 5px; padding-bottom:11px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/CATClists2009.xls" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2011 College Affordability and Transparency (lists only).</a>
+			</div>
+		</div>
+		<div>
+			<img alt="" title="" src="./College Affordability and Transparency Center_files/tooltip_bottom.png">
+		</div>
+	</div>
+	<div id="dvDownloadSummaryReportXLLinksPanel" style="z-index: 100; position: absolute; width: 375px; display: none;">
+		<div>
+			<img alt="" title="" src="./College Affordability and Transparency Center_files/tooltip_top.png">
+		</div>
+		<div style="float: left; background-image: url(images/tooltip_repeator.png); background-repeat: repeat-y; height: 75px; width: 375px;">
+			<div style="margin-top: 5px; margin-left: 30px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/2015%20CATEF%20Summary%20Guide%20to%20College%20Costs.pdf" target="_blank" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2015 CATEF Summary Guide to College Costs</a>
+			</div>
+            <div style="margin-top: 5px; margin-left: 30px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/CATEF%20Summary%20Guide%20to%20College%20Costs%202014.pdf" target="_blank" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2014 CATEF Summary Guide to College Costs</a>
+			</div>
+			<div style="margin-left: 30px; margin-top:5px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/2012-13%20CATEF%20Summary%20Guide%20to%20College%20Costs.pdf" target="_blank" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2013 CATEF Summary Guide to College Costs</a>
+			</div>
+			<div style="margin-top: 5px; margin-left: 30px;">
+				<a style="font-family: Arial; font-size: 11px; color: #ffffff; text-decoration: underline;" href="https://collegecost.ed.gov/catc/resources/2011%20Affordability%20Summary%20Report.pdf" target="_blank" onmouseover="this.style.textDecoration=&#39;underline&#39;" onmouseout="this.style.textDecoration=&#39;underline&#39;">2012 CATEF Summary Guide to College Costs</a>
+			</div>
+		</div>
+		<div>
+			<img alt="" title="" src="./College Affordability and Transparency Center_files/tooltip_bottom.png">
+		</div>
+	</div>
+
+            </div>
+
+	<!--Watch List Main Page-->
+	<input type="hidden" name="ctl00$cphFoot$hdnWLSectorId" id="ctl00_cphFoot_hdnWLSectorId" value="1">
+	<input type="hidden" name="ctl00$cphFoot$hdnWLOrderBy" id="ctl00_cphFoot_hdnWLOrderBy">
+	<input type="hidden" name="ctl00$cphFoot$hdnWLOrderType" id="ctl00_cphFoot_hdnWLOrderType">
+	<input type="hidden" name="ctl00$cphFoot$hdnWLSectorText" id="ctl00_cphFoot_hdnWLSectorText" value="Public, 4-year or above                           ">
+	<!--END Watch List Main Page-->
+	<!--AYC-->
+	<input type="hidden" name="ctl00$cphFoot$hdnAYCSectorId" id="ctl00_cphFoot_hdnAYCSectorId">
+	<input type="hidden" name="ctl00$cphFoot$hdnAYCReportTypeId" id="ctl00_cphFoot_hdnAYCReportTypeId">
+	<input type="hidden" name="ctl00$cphFoot$hdnAYCReportTypeCode" id="ctl00_cphFoot_hdnAYCReportTypeCode">
+	<input type="hidden" name="ctl00$cphFoot$hdnAYCOrderType" id="ctl00_cphFoot_hdnAYCOrderType">
+	<input type="hidden" name="ctl00$cphFoot$hdnAYCOrderBy" id="ctl00_cphFoot_hdnAYCOrderBy">
+	<!--END: AYC-->
+	<!--PC Report-->
+	<input type="hidden" name="ctl00$cphFoot$hdnPCCIPCode" id="ctl00_cphFoot_hdnPCCIPCode">
+	<input type="hidden" name="ctl00$cphFoot$hdnPCProgramName" id="ctl00_cphFoot_hdnPCProgramName">
+	<input type="hidden" name="ctl00$cphFoot$hdnPCOrderBy" id="ctl00_cphFoot_hdnPCOrderBy">
+	<input type="hidden" name="ctl00$cphFoot$hdnPCOrderType" id="ctl00_cphFoot_hdnPCOrderType">
+	<!--END: PC Report-->
+
+        </div>
+    </form>
+
+    <div id="dvGrayOutCover"></div>
+    <div id="divAjaxLoaderContainer" style="display: none; top: 50%; left: 50%; margin: 0px;"><img src="./College Affordability and Transparency Center_files/timer.gif" alt=""></div>
+    <script type="text/javascript" src="./College Affordability and Transparency Center_files/federated-analytics.all.min.js"></script>
+
+
+</body></html>
