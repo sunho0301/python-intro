@@ -26,7 +26,7 @@ n_arr = ["Mike", "Linus", "Grace"]
 #####################
 
 # Read the cost-data csv file into a pandas dataframe
-ed_data = pandas.read_csv("data/cost-data.csv")
+ed_data = pandas.read_csv("data/cost-data.csv", encoding="iso-8859-1")
 
 # Print the number of rows and columns in the data in the format
 # rows=#, cols=#
