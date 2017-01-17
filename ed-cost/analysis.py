@@ -46,11 +46,17 @@ print()
 # 2014-15 Tuition and fees  -> tuition.2014
 # Sectior name              -> sector
 # Name of institution       -> instituion
-
+ed_data = ed_data.rename(columns={'2012-13 Tuition and fees': 'tuition.2012',
+								'2014-15 Tuition and fees': 'tuition.2014',
+								'Sector name': 'sector',
+								'Name of institution': 'institution'})
 
 # How many UNIQUE institutions are there? What data structure could you
 # leverage?
-
+inst = ed_data.get("institution")
+#ed_data["institution"]
+ninst = len(set(inst))
+#set() <- only unique values
 
 # What types of schools are there? How many of each type are there?
 # Hint: You can do this using pandas or stock python
@@ -71,7 +77,7 @@ wa_data["tuition_rank"] = wa_data["tuition.2014"].rank(numeric_only=True)
 
 rank = wa_data[wa_data.institution ==
                "University of Washington-Seattle Campus"].tuition_rank.iloc[0]
-print("UW 2014 Tuition Rank: %d" % rank)
+print("UW 2014 Tuition Rank: %d" % rank)	
 print()
 
 # Which *sector* had the largest average change in tuition?
