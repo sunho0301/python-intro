@@ -17,6 +17,13 @@ import pandas
 # letter. Print the result of calling your function on n_arr.
 n_arr = ["Mike", "Linus", "Grace"]
 
+def findNames(names, letter):
+	new_list = []
+	for name in names:
+		if letter in name:
+			new_list.append(name)
+	return new_list
+
 
 # BONUS: Do it without a loop
 
